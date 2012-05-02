@@ -17,15 +17,25 @@ import urllib
 
 
 class Action(Resource):
-    is_leaf = True
+    isLeaf = True
+    needs_auth = True
     
     def __init__(self, site):
         assert hasattr(self, 'action_method')
         self.site = site
-        setattr(self, 'render_%s' % self.action_method, self.wrapper)
+        if self.needs_auth:
+            setattr(self, 'render_%s' % self.action_method, self.auth_wrapper)
+        else:
+            setattr(self, 'render_%s' % self.action_method, self.noauth_wrapper)
         Resource.__init__(self)
         
-    def wrapper(self, request):
+    def noauth_wrapper(self, request):
+        data = self.get_data_for_signature(request)
+        data['access_id'] = request.getHeader('djeesefs-access-id')
+        self.action_handler(request, **data)
+        return NOT_DONE_YET
+        
+    def auth_wrapper(self, request):
         data = self.get_data_for_signature(request)
         deferred = self.verify_signature(request, data)
         def callback(success):
@@ -74,6 +84,7 @@ class Delete(Action):
 
 class Exists(Action):
     action_method = 'GET'
+    needs_auth = False
     
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
@@ -107,6 +118,7 @@ class Listdir(Action):
 
 class Size(Action):
     action_method = 'GET'
+    needs_auth = False
     
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
@@ -121,6 +133,7 @@ class Size(Action):
 
 class Url(Action):
     action_method = 'GET'
+    needs_auth = False
     
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
@@ -172,6 +185,7 @@ class Finish(Upload):
 
 class AvailableName(Action):
     action_method = 'GET'
+    needs_auth = False
     
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)

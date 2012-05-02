@@ -29,9 +29,6 @@ class AuthView(Resource):
             return ''
         key = self.keys[access_id]
         data = dict((k, v[0]) for k,v in request.args.items())
-#        print "access_id", access_id
-#        print "signature", signature
-#        print "data", data
         if not verify(key, signature, data):
             request.setResponseCode(403)
             return ''

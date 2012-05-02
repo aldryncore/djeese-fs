@@ -4,26 +4,37 @@ from django.conf import settings
 from django.core.files.base import File
 from django.core.files.storage import Storage
 from fs.client import SyncClient
+import os
 
 
 class DjeeseFile(File):
     def __init__(self, storage, name, mode):
         self._storage = storage
-        self._name = name
-        self._mode = mode
+        self.name = name
+        self.mode = mode
         self._is_dirty = False
-        self.file = StringIO()
+        self._file = StringIO()
         self._active = False
+    
+    @property
+    def file(self):
+        if not self._active:
+            self._file = StringIO(self._storage.get_content(self.name))
+            self._active = True
+        return self._file
 
     @property
     def size(self):
         if not hasattr(self, '_size'):
-            self._size = self._storage.size(self._name)
+            self._size = self._storage.size(self.name)
         return self._size
+    
+    def seek(self, pos, mode=os.SEEK_SET):
+        self.file.seek(pos, mode)
 
     def read(self, num_bytes=None):
         if not self._active:
-            self.file = StringIO(self._storage.get_content(self._name))
+            self._file = StringIO(self._storage.get_content(self.name))
             self._active = True
         return self.file.read(num_bytes)
 
@@ -31,15 +42,16 @@ class DjeeseFile(File):
         if 'w' not in self._mode:
             raise AttributeError("File was opened for read-only access.")
         if not self._active:
-            self.file = StringIO(content)
+            self._file = StringIO(content)
         self._active = True
         self._is_dirty = True
         self.file.write(content)
 
     def close(self):
         if self._is_dirty:
-            self._storage._save(self._name, self)
-        self.file.close()
+            self._storage._save(self.name, self)
+        if self._active:
+            self.file.close()
 
 
 class DjeeseFSStorage(Storage):

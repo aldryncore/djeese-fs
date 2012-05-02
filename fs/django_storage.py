@@ -79,6 +79,7 @@ class DjeeseFSStorage(Storage):
     def _save(self, name, content):
         content.seek(0)
         self.client.save(name, content)
+        return name
         
     def get_valid_name(self, name):
         return self.client.get_valid_name(name)

@@ -1,0 +1,6 @@
+!.gitignore
+.*
+*.pyc
+/root/
+/env/
+/djeesefs.egg-info/

@@ -39,7 +39,7 @@ class DjeeseFile(File):
         return self.file.read(num_bytes)
 
     def write(self, content):
-        if 'w' not in self._mode:
+        if 'w' not in self.mode:
             raise AttributeError("File was opened for read-only access.")
         if not self._active:
             self._file = StringIO(content)

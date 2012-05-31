@@ -61,13 +61,15 @@ class SyncClient(object):
     def url(self, name):
         params = {'name': name}
         response = self._get('url', params)
-        response.raise_for_status()
+        if not response.ok:
+            return ''
         return response.content
     
     def get_content(self, name):
         url = self.url(name)
         response = requests.get(url)
-        response.raise_for_status()
+        if not response.ok:
+            return ''
         return response.content
     
     def save(self, name, fileobj):

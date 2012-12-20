@@ -9,8 +9,8 @@ import requests
 
 class SyncClient(object):
     def __init__(self, access_id, access_key, host):
-        self.access_id = access_id
-        self.access_key = access_key
+        self.access_id = str(access_id)
+        self.access_key = str(access_key)
         self.host = host
         self.session = requests.session(headers={'djeesefs-access-id': self.access_id})
         

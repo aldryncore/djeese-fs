@@ -90,6 +90,7 @@ class SyncClient(object):
                 response = self._post('finish', data)
                 response.raise_for_status()
                 break
+        fileobj.seek(0)
         return True
     
     def get_valid_name(self, name):

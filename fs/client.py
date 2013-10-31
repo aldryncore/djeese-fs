@@ -8,6 +8,9 @@ import requests
 
 
 class SyncClient(object):
+    '''
+    Synchronouse (blocking) client
+    '''
     def __init__(self, access_id, access_key, host):
         self.access_id = str(access_id)
         self.access_key = str(access_key)

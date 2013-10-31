@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import urllib
 
+# START: COPIED FROM DJANGO
 def _constant_time_compare(val1, val2):
     """
     Returns True if the two strings are equal, False otherwise.
@@ -15,6 +16,7 @@ def _constant_time_compare(val1, val2):
     for x, y in zip(val1, val2):
         result |= ord(x) ^ ord(y)
     return result == 0
+# END: COPIED FROM DJANGO
 
 def sign(key, data):
     data = urllib.urlencode(sorted(data.items()))

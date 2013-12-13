@@ -11,11 +11,14 @@ log.startLogging(sys.stdout)
 
 keys = {
     'key1': 'secret1',
+    'key2': 'secret2',
+    'key3': 'secret3',
+    'key4': 'secret4',
 }
-
 
 class AuthView(Resource):
     isLeaf = True
+
     def __init__(self, keys):
         self.keys = keys
         Resource.__init__(self)
@@ -42,8 +45,16 @@ class AuthServer(Site):
 
 oneMB = 1 * 1024 * 1024
 tenKB = 10 * 1024
-
-server = Server(os.path.abspath('root/'), 'http://localhost:9000/content', 'http://localhost:9001', oneMB, tenKB)
+root_path = os.path.abspath('root/')
+root_url = 'http://127.0.0.1:9000/content'
+auth_server_url = 'http://127.0.0.1:9001'
+print '''starting debug server
+root: %s
+content root: %s
+auth server: %s
+auth server keys: %s
+''' % (root_path, root_url, auth_server_url, keys)
+server = Server(root_path, root_url, auth_server_url, oneMB*10, oneMB)
 auth = AuthServer(keys)
 reactor.listenTCP(9000, server)
 reactor.listenTCP(9001, auth)

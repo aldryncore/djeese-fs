@@ -105,3 +105,19 @@ class SyncClient(object):
         response = self._get('available-name', params)
         response.raise_for_status()
         return response.content
+
+    def copy_container(self, source_access_id, source_access_key):
+        """
+        Copies the contents of another container into this one.
+        Warning: Deletes EVERYTHING inside the current container!
+
+        Requires the access credentials of the source container.
+        """
+        # we additionally sign our source container data with
+        # the source container secret. The server can then
+        # check both signatures to verify that the caller has
+        # knowledge of the secrets for both containers.
+        data = {'source_id': source_access_id}
+        data['source_signature'] = sign(source_access_key, data)
+        response = self._post('copy-container', data)
+        return response.ok

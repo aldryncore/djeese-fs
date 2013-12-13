@@ -39,6 +39,8 @@ class DjeeseFSTests(unittest.TestCase):
         self.root_folder = tempfile.mkdtemp()
         self.auth_server = TestingAuthServer()
         self.auth_port = reactor.listenTCP(0, self.auth_server, interface="127.0.0.1")
+        self.access_id = 'accessid'
+        self.access_key = 'accesskey'
         self.server = Server(
             root_folder=self.root_folder,
             root_url='http://127.0.0.1/',
@@ -48,8 +50,8 @@ class DjeeseFSTests(unittest.TestCase):
         )
         self.port = reactor.listenTCP(0, self.server, interface="127.0.0.1")
         self.server.root_url = 'http://127.0.0.1:%s/' % self.port.getHost().port
-        self.client = SyncClient('accessid', 'accesskey', self.server.root_url)
-    
+        self.client = SyncClient(self.access_id, self.access_key, self.server.root_url)
+
     def tearDown(self):
         shutil.rmtree(self.root_folder)
         self.server.stopFactory()
@@ -64,3 +66,57 @@ class DjeeseFSTests(unittest.TestCase):
         def cb(ok):
             self.assertFalse(ok)
         return self._call_client('exists', 'test.jpg').addCallback(cb)
+
+
+# class TestDjeeseFSCopyContainer(TestDjeeseFS):
+#     def setUp(self):
+#         super(TestDjeeseFSCopyContainer, self).setUp()
+#         self.source_access_id = 'sourceaccessid'
+#         self.source_access_key = 'sourceaccesskey'
+#         self.souce_client = SyncClient(
+#             self.source_access_id, self.source_access_key, self.server.root_url)
+#
+#     def create_sample_data(self):
+#         # create a source folder
+#         file_paths = [
+#             '/a/folder/file.txt',
+#             '/file.txt',
+#             '/.otherfile',
+#             '/.otherfolder/anotherfile.txt',
+#             '/.otherfolder/.anotherfile.txt',
+#         ]
+#         for file_path in file_paths:
+#             dummy_file = StringIO.StringIO()
+#             dummy_file.write('some content')
+#             self.client.save(file_path, dummy_file)
+#
+#         # create destination folder
+#         file_paths = [
+#             '/a/asfas/file.txt',
+#             '/fiassdle.txt',
+#             '/.othecccrfile',
+#             '/.othexsrfolder/anotherfile.txt',
+#             '/.otherfolder/.anotheaarfile.txt',
+#         ]
+#         for file_path in file_paths:
+#             dummy_file = StringIO.StringIO()
+#             dummy_file.write('some content')
+#             self.souce_client.save(file_path, dummy_file)
+#
+#
+#     def test_copy_container(self):
+#         self.create_sample_data()
+#         source_path = self.server.path(self.source_access_key)
+#         destination_path = self.server.path(self.access_id)
+#         assert len(filecmp.dircmp(source_path, destination_path).same_files()) == 0
+#
+#         def cb(ok):
+#             self.assertTrue(ok)
+#             dcmp = filecmp.dircmp(source_path, destination_path)
+#             self.assertEqual(len(dcmp.diff_files()), 0, 'files in cloned directory differ')
+#             self.assertEqual(len(dcmp.common()), len(dcmp.left_list()), 'directories in cloned directory differ')
+#         self._call_client(
+#             'copy-container',
+#             self.source_access_id, self.source_access_key
+#         ).addCallback(cb)
+

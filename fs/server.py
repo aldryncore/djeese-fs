@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import datetime
+import shutil
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.python import log
@@ -200,6 +202,81 @@ class AvailableName(Action):
         request.finish()
 
 
+class CopyContainer(Action):
+    """
+    Makes a backup of this container.
+    Removes all files currently inside this container.
+    Copies the whole source container into this one.
+    """
+    action_method = 'POST'
+
+    def get_data_for_signature(self, request):
+        # the signed payload for the main verification request is both
+        # the id of the source container and signature signed using the
+        # source container secret.
+        return {
+            'source_id': request.args['source_id'][0],
+            'source_signature': request.args['source_signature'][0],
+        }
+
+    def action_handler(self, request, access_id, source_id, source_signature):
+        # The regular signature verification has already happened.
+        # Now check if the signature for the source container is valid as well.
+        source_data = {'source_id': source_id}
+        deferred = self.site.verify_signature(
+            source_id,
+            source_signature,
+            source_data
+        )
+
+        def callback(success):
+            if success:
+                # copy the container
+                # blocking. I know :-(
+                self.copy_container(
+                    source_id=source_id,
+                    destination_id=access_id)
+                request.setResponseCode(200)
+            else:
+                request.setResponseCode(403)
+            request.finish()
+
+        def errback(reason):
+            if isinstance(reason, Error):
+                request.setResponseCode(reason.status)
+            else:
+                request.setResponseCode(400)
+            request.finish()
+            return reason
+        deferred.addCallback(callback)
+        deferred.addErrback(errback)
+        return NOT_DONE_YET
+
+    def copy_container(self, source_id, destination_id, make_backup=True):
+        """
+        Does the actual clone. Unfortunately this is a blocking operation.
+        """
+        # remove trailing slashes
+        source_path = os.path.dirname(self.site.path(source_id, ''))
+        destination_path = os.path.dirname(self.site.path(destination_id, ''))
+        if os.path.exists(destination_path):
+            if make_backup:
+                backup_path = destination_path
+                while os.path.exists(backup_path):
+                    timestamp = str(datetime.datetime.now())\
+                        .replace(' ', '_').replace(':', '-')
+                    backup_path = u"%s.%s.backup" % (
+                        destination_path,
+                        timestamp,
+                    )
+                shutil.move(destination_path, backup_path)
+            else:
+                shutil.rmtree(destination_path)
+        # copy source to destination
+        shutil.copytree(source_path, destination_path)
+        return True
+
+
 class UploadedFile(object):
     def __init__(self, key, path, access_id, timeout, max_size, pop):
         self.key = key
@@ -293,6 +370,7 @@ class Server(Site):
     /upload -> Uploads a chunk of maximum chunksize (see save) for a given key
     /finish -> Finishes the file upload for a given key
     /available-name -> Returns an available unused name for a given name.
+    /copy-container -> Copies a other container into the current one.
     """
     du_pattern = re.compile(r'^(\d+)')
     
@@ -314,6 +392,7 @@ class Server(Site):
         root.putChild('upload', Upload(self))
         root.putChild('finish', Finish(self))
         root.putChild('available-name', AvailableName(self))
+        root.putChild('copy-container', CopyContainer(self))
         Site.__init__(self, root)
         
     def verify_signature(self, access_id, signature, data):

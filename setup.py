@@ -10,7 +10,6 @@ INSTALL_REQUIRES = [
     'argparse==1.2.1',
     'certifi==0.0.8',
     'chardet==1.0.1',
-    'requests==0.11.2',
     'wsgiref==0.1.2',
     'zope.interface==3.8.0',
 ]

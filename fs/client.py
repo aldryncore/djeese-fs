@@ -1,10 +1,43 @@
 # -*- coding: utf-8 -*-
+import urllib
 from django.utils.encoding import smart_str
 from fs.security import sign
 import hashlib
 import json
 import os
-import requests
+import urllib2
+
+
+class DjeeseFSClientException(Exception):
+    pass
+
+
+class FancyRequest(urllib2.Request):
+    """
+    Simple subclass of urllib2.Request that allows you to set HTTP method
+    """
+    def __init__(self, url, method="GET", data=None, headers=None,
+                 origin_req_host=None, unverifiable=False):
+        urllib2.Request.__init__(self, url, data=data, headers=headers or {},
+                                 origin_req_host=origin_req_host, unverifiable=unverifiable)
+        self.method = method
+
+    def get_method(self):
+        return self.method
+
+
+class FancyResponse(object):
+    def __init__(self, status_code, content):
+        self.status_code = status_code
+        self.content = content
+
+    def raise_for_status(self):
+        if not self.status_code == 200:
+            raise DjeeseFSClientException(self.content)
+
+    @property
+    def ok(self):
+        return self.status_code == 200
 
 
 class SyncClient(object):
@@ -15,8 +48,13 @@ class SyncClient(object):
         self.access_id = str(access_id)
         self.access_key = str(access_key)
         self.host = host
-        self.session = requests.session(headers={'djeesefs-access-id': self.access_id})
-        
+        self._opener = urllib2.build_opener()
+        self._opener.addheaders = [
+            ('djeesefs-access-id', self.access_id),
+            ('User-agent', 'djeese-fs-client')
+        ]
+
+
     def _sign(self, data, keys=None):
         if keys is not None:
             data = dict((k, v) for k, v in data.items() if k in keys)
@@ -24,20 +62,28 @@ class SyncClient(object):
     
     def _get_url(self, method):
         return '/'.join([self.host, method])
+
+    def _request(self, method, url, data=None, headers=None):
+        headers = headers or {}
+        request = FancyRequest(url, method, data=data, headers=headers)
+        response = self._opener.open(request)
+        return FancyResponse(response.getcode(), response.read())
     
     def _post(self, method, data, keys=None):
         headers = {
             'djeesefs-signature': self._sign(data, keys), 
         }
         url = self._get_url(method)
-        return self.session.post(url, data=data, headers=headers)
+        return self._request("POST", url, data=data, headers=headers)
     
     def _get(self, method, params, keys=None):
         headers = {
             'djeesefs-signature': self._sign(params, keys), 
         }
         url = self._get_url(method)
-        return self.session.get(url, params=params, headers=headers)
+        if params:
+            url = '%s?%s' % (url, urllib.urlencode(params))
+        return self._request("GET", url, headers=headers)
         
     def delete(self, name):
         data = {'name': name}
@@ -70,7 +116,7 @@ class SyncClient(object):
     
     def get_content(self, name):
         url = self.url(name)
-        response = requests.get(url)
+        response = self._request("GET", url)
         if not response.ok:
             return ''
         return response.content

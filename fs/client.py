@@ -33,7 +33,7 @@ class FancyResponse(object):
 
     def raise_for_status(self):
         if not self.status_code == 200:
-            raise DjeeseFSClientException(self.content)
+            raise DjeeseFSClientException(u"HTTP %s: %s" % (self.status_code, self.content))
 
     @property
     def ok(self):
@@ -66,7 +66,10 @@ class SyncClient(object):
     def _request(self, method, url, data=None, headers=None):
         headers = headers or {}
         request = FancyRequest(url, method, data=data, headers=headers)
-        response = self._opener.open(request)
+        try:
+            response = self._opener.open(request)
+        except urllib2.HTTPError as e:
+            return FancyResponse(e.code, e.read())
         return FancyResponse(response.getcode(), response.read())
     
     def _post(self, method, data, keys=None):

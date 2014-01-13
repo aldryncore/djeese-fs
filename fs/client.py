@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-import urllib
-from django.utils.encoding import smart_str
-from fs.security import sign
 import hashlib
 import json
 import os
 import urllib
 import urllib2
+
+from django.utils.encoding import smart_str
+
+from fs.security import sign
 
 
 class DjeeseFSClientException(Exception):
@@ -55,12 +56,11 @@ class SyncClient(object):
             ('User-agent', 'djeese-fs-client')
         ]
 
-
     def _sign(self, data, keys=None):
         if keys is not None:
             data = dict((k, v) for k, v in data.items() if k in keys)
         return sign(self.access_key, data)
-    
+
     def _get_url(self, method):
         return '/'.join([self.host, method])
 
@@ -73,59 +73,59 @@ class SyncClient(object):
         except urllib2.HTTPError as e:
             return FancyResponse(e.code, e.read())
         return FancyResponse(response.getcode(), response.read())
-    
+
     def _post(self, method, data, keys=None):
         headers = {
-            'djeesefs-signature': self._sign(data, keys), 
+            'djeesefs-signature': self._sign(data, keys),
         }
         url = self._get_url(method)
         return self._request("POST", url, data=data, headers=headers)
-    
+
     def _get(self, method, params, keys=None):
         headers = {
-            'djeesefs-signature': self._sign(params, keys), 
+            'djeesefs-signature': self._sign(params, keys),
         }
         url = self._get_url(method)
         if params:
             url = '%s?%s' % (url, urllib.urlencode(params))
         return self._request("GET", url, headers=headers)
-        
+
     def delete(self, name):
         data = {'name': name}
         response = self._post('delete', data)
         return response.ok
-    
+
     def exists(self, name):
         params = {'name': name}
         response = self._get('exists', params)
         return response.ok
-    
+
     def listdir(self, path):
         params = {'name': path}
         response = self._get('listdir', params)
         response.raise_for_status()
         return json.loads(response.content)
-    
+
     def size(self, name):
         params = {'name': name}
         response = self._get('size', params)
         response.raise_for_status()
         return int(response.content)
-    
+
     def url(self, name):
         params = {'name': name}
         response = self._get('url', params)
         if not response.ok:
             return ''
         return response.content
-    
+
     def get_content(self, name):
         url = self.url(name)
         response = self._request("GET", url)
         if not response.ok:
             return ''
         return response.content
-    
+
     def save(self, name, fileobj):
         fileobj.seek(0)
         data = {'name': name}
@@ -146,11 +146,11 @@ class SyncClient(object):
                 break
         fileobj.seek(0)
         return True
-    
+
     def get_valid_name(self, name):
         name, ext = os.path.splitext(name)
         return '%s%s' % (hashlib.md5(smart_str(name)).hexdigest(), ext)
-    
+
     def get_available_name(self, name):
         params = {'name': name}
         response = self._get('available-name', params)

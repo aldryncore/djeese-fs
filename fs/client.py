@@ -171,4 +171,5 @@ class SyncClient(object):
         data = {'source_id': source_access_id}
         data['source_signature'] = sign(source_access_key, data)
         response = self._post('copy-container', data)
+        response.raise_for_status()
         return response.ok

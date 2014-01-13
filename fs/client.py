@@ -5,6 +5,7 @@ from fs.security import sign
 import hashlib
 import json
 import os
+import urllib
 import urllib2
 
 
@@ -65,7 +66,8 @@ class SyncClient(object):
 
     def _request(self, method, url, data=None, headers=None):
         headers = headers or {}
-        request = FancyRequest(url, method, data=data, headers=headers)
+        data_urlencoded = urllib.urlencode(data)
+        request = FancyRequest(url, method, data=data_urlencoded, headers=headers)
         try:
             response = self._opener.open(request)
         except urllib2.HTTPError as e:

@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import urllib
 
+
 # START: COPIED FROM DJANGO
 def _constant_time_compare(val1, val2):
     """
@@ -18,10 +19,12 @@ def _constant_time_compare(val1, val2):
     return result == 0
 # END: COPIED FROM DJANGO
 
+
 def sign(key, data):
     data = urllib.urlencode(sorted(data.items()))
-    signature = hmac.new(key, data, digestmod=hashlib.sha256).hexdigest()
+    signature = hmac.new(str(key), str(data), digestmod=hashlib.sha256).hexdigest()
     return signature
+
 
 def verify(key, signature, data):
     expected = sign(key, data)

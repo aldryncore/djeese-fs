@@ -273,7 +273,11 @@ class CopyContainer(Action):
             else:
                 shutil.rmtree(destination_path)
         # copy source to destination
-        shutil.copytree(source_path, destination_path)
+        if os.path.exists(source_path):
+            # if the source directory doesn't exist, we don't have to do
+            # anything, since the backuping already moved the old destination
+            # directory, making its state consistent with the source (empty)
+            shutil.copytree(source_path, destination_path)
         return True
 
 

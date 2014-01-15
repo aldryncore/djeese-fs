@@ -66,7 +66,7 @@ class SyncClient(object):
 
     def _request(self, method, url, data=None, headers=None):
         headers = headers or {}
-        data_urlencoded = urllib.urlencode(data)
+        data_urlencoded = urllib.urlencode(data) if data else None
         request = FancyRequest(url, method, data=data_urlencoded, headers=headers)
         try:
             response = self._opener.open(request)

@@ -61,6 +61,7 @@ class DjeeseFile(File):
             self._storage._save(self.name, self)
         if self._active:
             self.file.close()
+            self._active = False
 
 
 class DjeeseFSStorage(Storage):

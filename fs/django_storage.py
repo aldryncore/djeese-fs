@@ -47,6 +47,15 @@ class DjeeseFile(File):
         self._is_dirty = True
         self.file.write(content)
 
+    def open(self, mode=None):
+        if not self.closed:
+            self.seek(0)
+        elif self.name and self._storage.exists(self.name):
+            # no need to do anything. the file is lazily opened when accessing self.file
+            pass
+        else:
+            raise ValueError("The file cannot be reopened.")
+
     def close(self):
         if self._is_dirty:
             self._storage._save(self.name, self)

@@ -62,7 +62,7 @@ class SyncClient(object):
         return sign(self.access_key, data)
 
     def _get_url(self, method):
-        return '/'.join([self.host, method])
+        return '/'.join([self.host.rstrip('/'), method.lstrip('/')])
 
     def _request(self, method, url, data=None, headers=None):
         headers = headers or {}

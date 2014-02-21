@@ -173,3 +173,24 @@ class SyncClient(object):
         response = self._post('copy-container', data)
         response.raise_for_status()
         return response.ok
+
+    def get_container_archive(self, fobj):
+        """
+        Returns an archive containing a backup of this container.
+        """
+        data = {}
+        response = self._post('get-container-archive', data)
+        response.raise_for_status()
+        fobj.write(response.content)
+        return True
+
+    def restore_container_archive(self, content):
+        """
+        Uploads an archive containing a backup of this container and
+        restores it.
+        WARNING: current container will be locally moved to a backup directory.
+        """
+        data = {'content': content}
+        response = self._post('restore-container-archive', data)
+        response.raise_for_status()
+        return True

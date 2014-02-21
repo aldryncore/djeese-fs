@@ -1,6 +1,16 @@
 # -*- coding: utf-8 -*-
+from StringIO import StringIO
 import datetime
+import hashlib
+import json
+import os
+import re
 import shutil
+import subprocess
+import tarfile
+import time
+import urllib
+
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.python import log
@@ -9,37 +19,34 @@ from twisted.web.error import Error
 from twisted.web.resource import Resource
 from twisted.web.server import Site, NOT_DONE_YET
 from twisted.web.static import File
-import hashlib
-import json
-import os
-import re
-import subprocess
-import time
-import urllib
+
+from .utils import safemembers
 
 
 class Action(Resource):
     isLeaf = True
     needs_auth = True
-    
+
     def __init__(self, site):
         assert hasattr(self, 'action_method')
         self.site = site
         if self.needs_auth:
             setattr(self, 'render_%s' % self.action_method, self.auth_wrapper)
         else:
-            setattr(self, 'render_%s' % self.action_method, self.noauth_wrapper)
+            setattr(self, 'render_%s' %
+                    self.action_method, self.noauth_wrapper)
         Resource.__init__(self)
-        
+
     def noauth_wrapper(self, request):
         data = self.get_data_for_signature(request)
         data['access_id'] = request.getHeader('djeesefs-access-id')
         self.action_handler(request, **data)
         return NOT_DONE_YET
-        
+
     def auth_wrapper(self, request):
         data = self.get_data_for_signature(request)
         deferred = self.verify_signature(request, data)
+
         def callback(success):
             if success:
                 data['access_id'] = request.getHeader('djeesefs-access-id')
@@ -47,6 +54,7 @@ class Action(Resource):
             else:
                 request.setResponseCode(403)
                 request.finish()
+
         def errback(reason):
             if isinstance(reason, Error):
                 request.setResponseCode(reason.status)
@@ -57,7 +65,7 @@ class Action(Resource):
         deferred.addCallback(callback)
         deferred.addErrback(errback)
         return NOT_DONE_YET
-    
+
     def verify_signature(self, request, data):
         return self.site.verify_signature(
             request.getHeader('djeesefs-access-id'),
@@ -67,14 +75,14 @@ class Action(Resource):
 
     def get_data_for_signature(self, request):
         return {'name': request.args['name'][0]}
-    
+
     def action_handler(self, request, **kargs):
         raise NotImplementedError
 
 
 class Delete(Action):
     action_method = 'POST'
-    
+
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
         if os.path.exists(path):
@@ -87,7 +95,7 @@ class Delete(Action):
 class Exists(Action):
     action_method = 'GET'
     needs_auth = False
-    
+
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
         if os.path.exists(path):
@@ -99,7 +107,7 @@ class Exists(Action):
 
 class Listdir(Action):
     action_method = 'GET'
-    
+
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
         if os.path.exists(path):
@@ -121,7 +129,7 @@ class Listdir(Action):
 class Size(Action):
     action_method = 'GET'
     needs_auth = False
-    
+
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
         if os.path.exists(path):
@@ -136,7 +144,7 @@ class Size(Action):
 class Url(Action):
     action_method = 'GET'
     needs_auth = False
-    
+
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
         if os.path.exists(path):
@@ -149,8 +157,8 @@ class Url(Action):
 
 class Save(Action):
     action_method = 'POST'
-    chunk_size = 1 * 1024 * 1024 # 1MB
-    
+    chunk_size = 1 * 1024 * 1024  # 1MB
+
     def action_handler(self, request, access_id, name):
         if self.site.check_quota(access_id):
             path = self.site.path(access_id, name)
@@ -171,7 +179,7 @@ class Upload(Action):
 
     def get_data_for_signature(self, request):
         return {'key': request.args['key'][0]}
-    
+
     def action_handler(self, request, access_id, key):
         chunk = request.args['chunk'][0]
         if not self.site.file_saver.contribute(access_id, key, chunk):
@@ -180,6 +188,7 @@ class Upload(Action):
 
 
 class Finish(Upload):
+
     def action_handler(self, request, access_id, key):
         self.site.file_saver.finish(access_id, key)
         request.finish()
@@ -188,7 +197,7 @@ class Finish(Upload):
 class AvailableName(Action):
     action_method = 'GET'
     needs_auth = False
-    
+
     def action_handler(self, request, access_id, name):
         path = self.site.path(access_id, name)
         base, ext = os.path.splitext(os.path.basename(path))
@@ -281,7 +290,62 @@ class CopyContainer(Action):
         return True
 
 
+class GetContainerArchive(Action):
+    """
+    Returns an archive containing a backup of this container.
+    """
+    action_method = 'POST'
+    needs_auth = True
+
+    def get_data_for_signature(self, request):
+        return {}
+
+    def action_handler(self, request, access_id):
+        request.setHeader(b'content-type', b'application/octet-stream')
+        tarball = tarfile.open(mode='w|gz', fileobj=request)
+        path = os.path.dirname(self.site.path(access_id, ''))
+        if os.path.exists(path):
+            for item_name in os.listdir(path):
+                item_path = os.path.join(path, item_name)
+                tarball.add(item_path, item_name)
+        tarball.close()
+        request.finish()
+
+
+class RestoreContainerArchive(Action):
+    """
+    Uploads an archive containing a backup of this container and
+    restores it.
+    WARNING: current container will be locally moved to a backup directory.
+    """
+    action_method = 'POST'
+    needs_auth = False
+
+    def get_data_for_signature(self, request):
+        return {'content': request.args['content'][0]}
+
+    def action_handler(self, request, access_id, content):
+        path = os.path.dirname(self.site.path(access_id, ''))
+        if os.path.exists(path):
+            if os.listdir(path):
+                backup_path = path
+                while os.path.exists(backup_path):
+                    timestamp = (str(datetime.datetime.now()).
+                                 replace(' ', '_').replace(':', '-'))
+                    backup_path = u"%s.%s.backup" % (path, timestamp)
+                shutil.move(path, backup_path)
+                os.mkdir(path)
+        else:
+            os.mkdir(path)
+        tarball = tarfile.open(mode='r:gz', fileobj=StringIO(content))
+        tarball.extractall(
+            path, members=safemembers(path, tarball.getmembers()))
+        tarball.close()
+        request.finish()
+
+
 class UploadedFile(object):
+
     def __init__(self, key, path, access_id, timeout, max_size, pop):
         self.key = key
         self.path = path
@@ -292,11 +356,11 @@ class UploadedFile(object):
         self.fileobj = open(path, 'wb')
         self.size = 0
         self.timer = reactor.callLater(self.timeout, self.cancel)
-    
+
     def check(self, access_id):
         log.msg("Checking access: %s==%s" % (access_id, self.access_id))
         return access_id == self.access_id
-    
+
     def write(self, data):
         self.size += len(data)
         if self.size > self.max_size:
@@ -307,12 +371,12 @@ class UploadedFile(object):
             self.fileobj.write(data)
             self.timer.reset(self.timeout)
             return True
-    
+
     def finish(self):
         self.fileobj.close()
         self.timer.cancel()
         self.pop(self.key)
-    
+
     def cancel(self):
         self.fileobj.close()
         os.remove(self.path)
@@ -321,14 +385,14 @@ class UploadedFile(object):
 
 class FileSaver(object):
     timeout = 60
-    
+
     def __init__(self, site):
         self.site = site
         self.running = {}
-        
+
     def genkey(self):
         return hashlib.md5(str(time.time()) + str(id(self))).hexdigest()
-        
+
     def new(self, path, access_id):
         key = self.genkey()
         while key in self.running:
@@ -342,7 +406,7 @@ class FileSaver(object):
             pop=self.pop
         )
         return key
-    
+
     def contribute(self, access_id, key, data):
         fobj = self.running[key]
         if fobj.check(access_id):
@@ -350,14 +414,14 @@ class FileSaver(object):
         else:
             log.msg("Access to file %s denied for %s" % (key, access_id))
             return False
-    
+
     def finish(self, access_id, key):
         fobj = self.running[key]
         if fobj.check(access_id):
             return fobj.finish()
         else:
             return False
-    
+
     def pop(self, key):
         del self.running[key]
 
@@ -377,7 +441,7 @@ class Server(Site):
     /copy-container -> Copies a other container into the current one.
     """
     du_pattern = re.compile(r'^(\d+)')
-    
+
     def __init__(self, root_folder, root_url, auth_server, max_bucket_size, max_file_size):
         self.root_folder = root_folder
         self.root_url = root_url
@@ -397,8 +461,10 @@ class Server(Site):
         root.putChild('finish', Finish(self))
         root.putChild('available-name', AvailableName(self))
         root.putChild('copy-container', CopyContainer(self))
+        root.putChild('get-container-archive', GetContainerArchive(self))
+        root.putChild('restore-container-archive', RestoreContainerArchive(self))
         Site.__init__(self, root)
-        
+
     def verify_signature(self, access_id, signature, data):
         url = '%s?%s' % (self.auth_server, urllib.urlencode(data))
         headers = {
@@ -406,8 +472,10 @@ class Server(Site):
             'djeesefs-signature': signature,
         }
         deferred = Deferred()
+
         def callback(value):
             deferred.callback(True)
+
         def errback(reason):
             if isinstance(reason, Error):
                 if reason.status == 403:
@@ -419,14 +487,14 @@ class Server(Site):
             return reason
         getPage(url, headers=headers).addCallback(callback).addErrback(errback)
         return deferred
-        
+
     def path(self, access_id, name):
         return os.path.join(self.root_folder, access_id, name.lstrip('/'))
-    
+
     def relpath(self, access_id, fullpath):
         root = os.path.join(self.root_folder, access_id)
         return os.path.relpath(fullpath, root)
-    
+
     def check_quota(self, access_id):
         root = os.path.join(self.root_folder, access_id)
         if not os.path.exists(root):
@@ -434,6 +502,6 @@ class Server(Site):
         output = subprocess.check_output(['du', '-s', root])
         current_size = int(self.du_pattern.match(output).group(1))
         return current_size < self.max_bucket_size
-    
+
     def url(self, access_id, name):
         return '%s/%s/%s' % (self.root_url, access_id, name)

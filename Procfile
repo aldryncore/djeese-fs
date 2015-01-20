@@ -1,0 +1,1 @@
+web: djeesefs $ROOT_FOLDER $ROOT_URL $AUTH_SERVER $MAX_BUCKET_SIZE $MAX_FILE_SIZE --port=$PORT --verbose

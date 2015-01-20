@@ -5,7 +5,6 @@ from setuptools import setup, find_packages
 
 
 INSTALL_REQUIRES = [
-    'Django>=1.4',
     'Twisted>=12.0.0',
     'argparse>=1.2.1',
     'certifi>=0.0.8',

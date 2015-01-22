@@ -14,12 +14,12 @@ INSTALL_REQUIRES = [
 ]
 
 setup(
-    name='djeesefs',
+    name='djeese-fs',
     version=__version__,
     description='A twisted based daemon file system.',
     author='Jonas Obrist',
     author_email='ojiidotch@gmail.com',
-    url='https://github.com/aldryn/djeese-fs',
+    url='https://github.com/aldryncore/djeese-fs',
     packages=find_packages(),
     license='Proprietary',
     platforms=['OS Independent'],

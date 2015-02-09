@@ -1,4 +1,4 @@
-FROM aldryn/base:2.2
+FROM aldryn/base:2.3
 RUN mkdir -p /app
 VOLUME /data
 ADD server-requirements.txt /app/server-requirements.txt

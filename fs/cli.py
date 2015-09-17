@@ -13,6 +13,7 @@ def main():
     parser.add_argument('auth_server')
     parser.add_argument('max_bucket_size', type=int)
     parser.add_argument('max_file_size', type=int)
+    parser.add_argument('--dd-api-key')
     parser.add_argument('--port', default=9000, type=int)
     parser.add_argument(
         '-v', '--verbose', default=False, action='store_true', dest='verbose')
@@ -26,7 +27,9 @@ def main():
         root_url=args.root_url,
         auth_server=args.auth_server,
         max_bucket_size=args.max_bucket_size,
-        max_file_size=args.max_file_size)
+        max_file_size=args.max_file_size,
+        datadog_api_key=args.dd_api_key,
+    )
     reactor.listenTCP(args.port, server)
     reactor.run()
 

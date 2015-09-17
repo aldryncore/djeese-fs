@@ -11,7 +11,7 @@ import tarfile
 import time
 import urllib
 
-from twisted.internet import reactor, threads
+from twisted.internet import reactor, threads, task
 from twisted.internet.defer import Deferred, succeed
 from twisted.python import log
 from twisted.web.client import getPage
@@ -21,6 +21,7 @@ from twisted.web.server import Site, NOT_DONE_YET
 from twisted.web.static import File
 
 from .utils import safemembers
+from . import datadog
 
 
 class Action(Resource):
@@ -453,7 +454,8 @@ class Server(Site):
     """
     du_pattern = re.compile(r'^(\d+)')
 
-    def __init__(self, root_folder, root_url, auth_server, max_bucket_size, max_file_size):
+    def __init__(self, root_folder, root_url, auth_server,
+                 max_bucket_size, max_file_size, datadog_api_key=None):
         self.root_folder = root_folder
         self.root_url = root_url
         self.auth_server = auth_server
@@ -478,6 +480,20 @@ class Server(Site):
                       RestoreContainerArchive(self))
 
         Site.__init__(self, root)
+
+        if datadog_api_key:
+            self.start_reporting_stats(datadog_api_key)
+
+    def start_reporting_stats(self, api_key):
+        dd = datadog.DataDog(reactor, api_key)
+        lc = task.LoopingCall(self.report_stats, dd)
+        lc.start(10)
+
+    def report_stats(self, client):
+        return client.multi_metric([
+            datadog.metric('djeesefs.storage.free', 10),
+            datadog.metric('djeesefs.storage.used', 20),
+        ])
 
     def verify_signature(self, access_id, signature, data):
         url = '%s?%s' % (self.auth_server, urllib.urlencode(data))

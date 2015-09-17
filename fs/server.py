@@ -11,7 +11,7 @@ import tarfile
 import time
 import urllib
 
-from twisted.internet import reactor, threads
+from twisted.internet import reactor, threads, task
 from twisted.internet.defer import Deferred, succeed
 from twisted.python import log
 from twisted.web.client import getPage
@@ -21,6 +21,7 @@ from twisted.web.server import Site, NOT_DONE_YET
 from twisted.web.static import File
 
 from .utils import safemembers
+from . import datadog
 
 
 class Action(Resource):
@@ -282,8 +283,9 @@ class CopyContainer(Action):
             if make_backup:
                 backup_path = destination_path
                 while os.path.exists(backup_path):
-                    timestamp = str(datetime.datetime.now())\
-                        .replace(' ', '_').replace(':', '-')
+                    timestamp = (str(datetime.datetime.now())
+                                 .replace(' ', '_')
+                                 .replace(':', '-'))
                     backup_path = u"%s.%s.backup" % (
                         destination_path,
                         timestamp,
@@ -452,13 +454,15 @@ class Server(Site):
     """
     du_pattern = re.compile(r'^(\d+)')
 
-    def __init__(self, root_folder, root_url, auth_server, max_bucket_size, max_file_size):
+    def __init__(self, root_folder, root_url, auth_server,
+                 max_bucket_size, max_file_size, datadog_api_key=None):
         self.root_folder = root_folder
         self.root_url = root_url
         self.auth_server = auth_server
         self.max_bucket_size = max_bucket_size
         self.max_file_size = max_file_size
         self.file_saver = FileSaver(self)
+
         root = Resource()
         root.putChild('delete', Delete(self))
         root.putChild('exists', Exists(self))
@@ -472,8 +476,25 @@ class Server(Site):
         root.putChild('available-name', AvailableName(self))
         root.putChild('copy-container', CopyContainer(self))
         root.putChild('get-container-archive', GetContainerArchive(self))
-        root.putChild('restore-container-archive', RestoreContainerArchive(self))
+        root.putChild('restore-container-archive',
+                      RestoreContainerArchive(self))
+
         Site.__init__(self, root)
+
+        if datadog_api_key:
+            self.start_reporting_stats(datadog_api_key)
+
+    def start_reporting_stats(self, api_key):
+        dd = datadog.DataDog(reactor, api_key)
+        lc = task.LoopingCall(self.report_stats, dd)
+        lc.start(10)
+
+    def report_stats(self, client):
+        used, free = self.get_usage()
+        return client.multi_metric([
+            datadog.metric('djeesefs.storage.free', free),
+            datadog.metric('djeesefs.storage.used', used),
+        ])
 
     def verify_signature(self, access_id, signature, data):
         url = '%s?%s' % (self.auth_server, urllib.urlencode(data))
@@ -504,6 +525,16 @@ class Server(Site):
     def relpath(self, access_id, fullpath):
         root = os.path.join(self.root_folder, access_id)
         return os.path.relpath(fullpath, root)
+
+    def get_usage(self):
+        out = subprocess.check_output([
+            'df',
+            '--output=used,avail',
+            '--block-size=1',
+            self.root_folder,
+        ])
+        used, avail = out.splitlines()[-1].split()
+        return int(used), int(avail)
 
     def check_quota(self, access_id):
         root = os.path.join(self.root_folder, access_id)

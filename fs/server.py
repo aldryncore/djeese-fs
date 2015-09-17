@@ -490,9 +490,10 @@ class Server(Site):
         lc.start(10)
 
     def report_stats(self, client):
+        used, free = self.get_usage()
         return client.multi_metric([
-            datadog.metric('djeesefs.storage.free', 10),
-            datadog.metric('djeesefs.storage.used', 20),
+            datadog.metric('djeesefs.storage.free', free),
+            datadog.metric('djeesefs.storage.used', used),
         ])
 
     def verify_signature(self, access_id, signature, data):
@@ -524,6 +525,16 @@ class Server(Site):
     def relpath(self, access_id, fullpath):
         root = os.path.join(self.root_folder, access_id)
         return os.path.relpath(fullpath, root)
+
+    def get_usage(self):
+        out = subprocess.check_output([
+            'df',
+            '--output=used,avail',
+            '--block-size=1',
+            self.root_folder,
+        ])
+        used, avail = out.splitlines()[-1].split()
+        return int(used), int(avail)
 
     def check_quota(self, access_id):
         root = os.path.join(self.root_folder, access_id)

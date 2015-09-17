@@ -29,3 +29,7 @@ def main():
         max_file_size=args.max_file_size)
     reactor.listenTCP(args.port, server)
     reactor.run()
+
+
+if __name__ == '__main__':
+    main()

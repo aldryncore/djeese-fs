@@ -244,7 +244,9 @@ class CopyContainer(Action):
                 # blocking. I know :-(
                 self.copy_container(
                     source_id=source_id,
-                    destination_id=access_id)
+                    destination_id=access_id,
+                    make_backup=False,
+                )
                 request.setResponseCode(200)
             else:
                 request.setResponseCode(403)

@@ -11,8 +11,8 @@ import tarfile
 import time
 import urllib
 
-from twisted.internet import reactor
-from twisted.internet.defer import Deferred
+from twisted.internet import reactor, threads
+from twisted.internet.defer import Deferred, succeed
 from twisted.python import log
 from twisted.web.client import getPage
 from twisted.web.error import Error
@@ -211,6 +211,12 @@ class AvailableName(Action):
         request.finish()
 
 
+def finish_request_with_code(result, request, code):
+    request.setResponseCode(code)
+    request.finish()
+    return result
+
+
 class CopyContainer(Action):
     """
     Makes a backup of this container.
@@ -240,17 +246,18 @@ class CopyContainer(Action):
 
         def callback(success):
             if success:
-                # copy the container
-                # blocking. I know :-(
-                self.copy_container(
+                # Execute the copy in a thread to prevent blocking the reactor
+                d = threads.deferToThread(
+                    self.copy_container,
                     source_id=source_id,
                     destination_id=access_id,
                     make_backup=False,
                 )
-                request.setResponseCode(200)
+                return d.addCallback(finish_request_with_code, request, 200)
             else:
                 request.setResponseCode(403)
-            request.finish()
+                request.finish()
+                return succeed(None)
 
         def errback(reason):
             if isinstance(reason, Error):
@@ -259,6 +266,7 @@ class CopyContainer(Action):
                 request.setResponseCode(400)
             request.finish()
             return reason
+
         deferred.addCallback(callback)
         deferred.addErrback(errback)
         return NOT_DONE_YET

@@ -5,6 +5,7 @@ from twisted.python import log
 import argparse
 import sys
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('root_folder')
@@ -13,12 +14,13 @@ def main():
     parser.add_argument('max_bucket_size', type=int)
     parser.add_argument('max_file_size', type=int)
     parser.add_argument('--port', default=9000, type=int)
-    parser.add_argument('-v', '--verbose', default=False, action='store_true', dest='verbose')
+    parser.add_argument(
+        '-v', '--verbose', default=False, action='store_true', dest='verbose')
     args = parser.parse_args()
-    
+
     if args.verbose:
         log.startLogging(sys.stdout)
-    
+
     server = Server(
         root_folder=args.root_folder,
         root_url=args.root_url,

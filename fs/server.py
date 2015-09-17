@@ -282,8 +282,9 @@ class CopyContainer(Action):
             if make_backup:
                 backup_path = destination_path
                 while os.path.exists(backup_path):
-                    timestamp = str(datetime.datetime.now())\
-                        .replace(' ', '_').replace(':', '-')
+                    timestamp = (str(datetime.datetime.now())
+                                 .replace(' ', '_')
+                                 .replace(':', '-'))
                     backup_path = u"%s.%s.backup" % (
                         destination_path,
                         timestamp,
@@ -459,6 +460,7 @@ class Server(Site):
         self.max_bucket_size = max_bucket_size
         self.max_file_size = max_file_size
         self.file_saver = FileSaver(self)
+
         root = Resource()
         root.putChild('delete', Delete(self))
         root.putChild('exists', Exists(self))
@@ -472,7 +474,9 @@ class Server(Site):
         root.putChild('available-name', AvailableName(self))
         root.putChild('copy-container', CopyContainer(self))
         root.putChild('get-container-archive', GetContainerArchive(self))
-        root.putChild('restore-container-archive', RestoreContainerArchive(self))
+        root.putChild('restore-container-archive',
+                      RestoreContainerArchive(self))
+
         Site.__init__(self, root)
 
     def verify_signature(self, access_id, signature, data):

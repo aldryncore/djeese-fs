@@ -490,11 +490,19 @@ class Server(Site):
         lc.start(10)
 
     def report_stats(self, client):
+        def eb(reason):
+            # Log the error and make sure not to re-raise any failure.
+            # Triggering an errback inside LoopingCall causes it to stop
+            # running.
+            log.err(reason, 'Failed to report usage to DataDog')
+
         used, free = self.get_usage()
-        return client.multi_metric([
+        d = client.multi_metric([
             datadog.metric('djeesefs.storage.free', free),
             datadog.metric('djeesefs.storage.used', used),
         ])
+        d.addErrback(eb)
+        return d
 
     def verify_signature(self, access_id, signature, data):
         url = '%s?%s' % (self.auth_server, urllib.urlencode(data))

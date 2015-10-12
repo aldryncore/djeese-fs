@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import time
 import urllib
+import glob
 
 from twisted.internet import reactor, threads, task
 from twisted.internet.defer import Deferred, succeed
@@ -216,6 +217,20 @@ def finish_request_with_code(result, request, code):
     request.setResponseCode(code)
     request.finish()
     return result
+
+
+class DeleteContainer(Action):
+    action_method = 'POST'
+    needs_auth = True
+
+    def get_data_for_signature(self, request):
+        return {}
+
+    def action_handler(self, request, access_id):
+        path = self.site.path(access_id, '').rstrip('/')
+        for path in glob.glob(path + '*'):
+            shutil.rmtree(path)
+        request.finish()
 
 
 class CopyContainer(Action):
@@ -474,6 +489,7 @@ class Server(Site):
         root.putChild('upload', Upload(self))
         root.putChild('finish', Finish(self))
         root.putChild('available-name', AvailableName(self))
+        root.putChild('delete-container', DeleteContainer(self))
         root.putChild('copy-container', CopyContainer(self))
         root.putChild('get-container-archive', GetContainerArchive(self))
         root.putChild('restore-container-archive',

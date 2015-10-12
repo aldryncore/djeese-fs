@@ -95,6 +95,10 @@ class SyncClient(object):
         response = self._post('delete', data)
         return response.ok
 
+    def delete_container(self):
+        response = self._post('delete-container', {})
+        return response.ok
+
     def exists(self, name):
         params = {'name': name}
         response = self._get('exists', params)
